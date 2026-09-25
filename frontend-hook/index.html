@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StepForge3D Voice Engine</title>
+<script>
+  /* NEW: apply saved theme before paint (no flash) */
+  try {
+    var t = localStorage.getItem("sf3d-theme");
+    if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}
+</script>
+<style>
+  :root, [data-theme="dark"] {
+    --bg: #12151A;
+    --grid: rgba(255,255,255,0.04);
+    --card: #1A1F27;
+    --field: #0F1216;
+    --border: #2C3440;
+    --text: #E8EAED;
+    --muted: #8D97A6;
+    --accent: #FF6B1A;
+    --accent-hover: #FF8442;
+    --on-accent: #12151A;
+    --rec: #E5383B;
+    --ok: #3DDC97;
+    --err: #FF6B6B;
+    --shadow: 0 6px 24px rgba(0,0,0,0.35);
+    color-scheme: dark;
+  }
+  [data-theme="light"] {
+    --bg: #ECEEF1;
+    --grid: rgba(18,21,26,0.06);
+    --card: #FFFFFF;
+    --field: #F5F6F8;
+    --border: #D2D8E0;
+    --text: #12151A;
+    --muted: #5B6675;
+    --accent: #E85A0C;
+    --accent-hover: #C94D08;
+    --on-accent: #FFFFFF;
+    --rec: #D62828;
+    --ok: #12905B;
+    --err: #C62828;
+    --shadow: 0 4px 16px rgba(18,21,26,0.08);
+    color-scheme: light;
+  }
+
+  html {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 32px 32px;
+    min-height: 100%;
+  }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    max-width: 700px; margin: 40px auto; padding: 0 20px 40px;
+    color: var(--text);
+    transition: color .2s;
+  }
+
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.3px; color: var(--text); }
+  h2 {
+    margin: 0 0 6px; font-size: 20px; color: var(--text);
+    display: flex; align-items: center; gap: 10px;
+  }
+  h2::before { content: ""; width: 10px; height: 10px; background: var(--accent); border-radius: 2px; flex: none; }
+
+  .card {
+    background: var(--card); padding: 22px; border-radius: 12px; margin-bottom: 20px;
+    border: 1px solid var(--border); border-top: 3px solid var(--accent);
+    box-shadow: var(--shadow);
+  }
+
+  label {
+    font-family: Consolas, "SF Mono", Menlo, "Courier New", monospace;
+    font-size: 13px; font-weight: bold; color: var(--muted);
+    margin-top: 14px; display: block;
+  }
+
+  select, textarea, button, input[type="file"] {
+    width: 100%; padding: 11px 12px; margin-top: 8px; border-radius: 8px;
+    border: 1px solid var(--border); font-size: 14px; box-sizing: border-box;
+  }
+  select, textarea, input[type="file"] { background: var(--field); color: var(--text); }
+  textarea { font-family: Consolas, "SF Mono", Menlo, "Courier New", monospace; resize: vertical; }
+  select:hover, textarea:hover, input[type="file"]:hover { border-color: var(--muted); }
+  select:focus-visible, textarea:focus-visible, input[type="file"]:focus-visible,
+  button:focus-visible, .theme-toggle:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  input[type="file"]::file-selector-button {
+    background: transparent; color: var(--accent); border: 1px solid var(--accent);
+    border-radius: 6px; padding: 6px 12px; margin-right: 12px; cursor: pointer; font-weight: bold;
+  }
+
+  button {
+    background: var(--accent); color: var(--on-accent); border: none; cursor: pointer;
+    font-weight: bold; font-size: 15px; padding: 13px 12px;
+    transition: background .15s, transform .1s;
+  }
+  button:hover { background: var(--accent-hover); }
+  button:active { transform: translateY(1px); }
+  button:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; transform: none; }
+
+  /* NEW: pulsing mic while recording */
+  button.recording { background: var(--rec); color: #fff; animation: pulse 1.4s ease-out infinite; }
+  button.recording:hover { background: var(--rec); }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(229,56,59,0.65); }
+    70%  { box-shadow: 0 0 0 14px rgba(229,56,59,0); }
+    100% { box-shadow: 0 0 0 0 rgba(229,56,59,0); }
+  }
+
+  /* NEW: theme toggle */
+  .theme-toggle {
+    width: auto; margin: 0; padding: 8px 14px; border-radius: 999px;
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    font-size: 13px; display: inline-flex; align-items: center; gap: 8px; flex: none;
+  }
+  .theme-toggle:hover { background: var(--card); border-color: var(--accent); }
+
+  audio { width: 100%; margin-top: 15px; }
+
+  .status {
+    margin-top: 12px; min-height: 22px; color: var(--muted);
+    display: flex; align-items: center; gap: 10px;
+    font-family: Consolas, "SF Mono", Menlo, "Courier New", monospace; font-size: 13px;
+  }
+  .status.error { color: var(--err); }
+  .status.success { color: var(--ok); font-size: 18px; font-weight: bold; }
+
+  /* NEW: loading spinner */
+  .spinner {
+    width: 16px; height: 16px; flex: none; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    button.recording { animation: none; }
+    .spinner { animation-duration: 2s; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>StepForge3D Voice Engine</h1>
+  <button class="theme-toggle" id="themeToggle" type="button" onclick="toggleTheme()" aria-label="Switch between dark and light mode">
+    <span id="themeIcon">☀️</span><span id="themeLabel">Light</span>
+  </button>
+</div>
+
+<div class="card">
+  <h2>Text → Speech</h2>
+  <label>English Text</label>
+  <textarea id="textInput" rows="3" placeholder="e.g. Wear safety gloves before starting the procedure."></textarea>
+
+  <label>Target Language</label>
+  <select id="targetLang">
+    <option value="hindi">Hindi (हिंदी)</option>
+    <option value="marathi">Marathi (मराठी)</option>
+    <option value="tamil">Tamil (தமிழ்)</option>
+    <option value="telugu">Telugu (తెలుగు)</option>
+    <option value="kannada">Kannada (ಕನ್ನಡ)</option>
+    <option value="bengali">Bengali (বাংলা)</option>
+    <option value="gujarati">Gujarati (ગુજરાતી)</option>
+  </select>
+
+  <button id="generateBtn" onclick="generateAudio()">Generate Audio</button>
+  <div class="status" id="textStatus"></div>
+  <audio id="textAudio" controls style="display:none;"></audio>
+</div>
+
+<div class="card">
+  <h2>Speech → Speech</h2>
+  <label>Source Language (what's being spoken)</label>
+  <select id="sourceLang">
+    <option value="hindi">Hindi (हिंदी)</option>
+    <option value="marathi">Marathi (मराठी)</option>
+    <option value="tamil">Tamil (தமிழ்)</option>
+    <option value="telugu">Telugu (తెలుగు)</option>
+    <option value="kannada">Kannada (ಕನ್ನಡ)</option>
+    <option value="bengali">Bengali (বাংলা)</option>
+    <option value="gujarati">Gujarati (ગુજરાતી)</option>
+  </select>
+
+  <label>Target Language (output)</label>
+  <select id="targetLang2">
+    <option value="hindi">Hindi (हिंदी)</option>
+    <option value="marathi">Marathi (मराठी)</option>
+    <option value="tamil">Tamil (தமிழ்)</option>
+    <option value="telugu">Telugu (తెలుగు)</option>
+    <option value="kannada">Kannada (ಕನ್ನಡ)</option>
+    <option value="bengali">Bengali (বাংলা)</option>
+    <option value="gujarati">Gujarati (ગુજરાતી)</option>
+  </select>
+
+  <label>Option 1: Record Live</label>
+  <button id="recordBtn" onclick="toggleRecording()">🎙️ Start Recording</button>
+
+  <label style="margin-top:22px;">Option 2: Upload Audio or Video File</label>
+  <input type="file" id="audioFileInput" accept="audio/*,video/*">
+  <button onclick="uploadAudioFile()">Upload & Convert</button>
+
+  <div class="status" id="voiceStatus"></div>
+  <audio id="voiceAudio" controls style="display:none;"></audio>
+</div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000";
+
+// ---------- NEW: theme toggle ----------
+function applyThemeLabel() {
+  const dark = document.documentElement.getAttribute("data-theme") !== "light";
+  document.getElementById("themeIcon").textContent = dark ? "☀️" : "🌙";
+  document.getElementById("themeLabel").textContent = dark ? "Light" : "Dark";
+}
+function toggleTheme() {
+  const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("sf3d-theme", next); } catch (e) {}
+  applyThemeLabel();
+}
+applyThemeLabel();
+
+// ---------- NEW: status helper (spinner / check / error) ----------
+function setStatus(el, text, state) {
+  el.className = "status" + (state ? " " + state : "");
+  el.textContent = "";
+  if (state === "loading") {
+    const sp = document.createElement("span");
+    sp.className = "spinner";
+    el.appendChild(sp);
+  }
+  if (state === "success") {
+    el.textContent = "✓";
+    el.setAttribute("aria-label", "Done");
+    return;
+  }
+  if (text) {
+    const t = document.createElement("span");
+    t.textContent = text;
+    el.appendChild(t);
+  }
+}
+
+// ---------- Text to Speech ----------
+async function generateAudio() {
+  const text = document.getElementById("textInput").value;
+  const targetLang = document.getElementById("targetLang").value;
+  const status = document.getElementById("textStatus");
+  const audioEl = document.getElementById("textAudio");
+  const btn = document.getElementById("generateBtn");
+
+  if (!text.trim()) { alert("Please enter some text."); return; }
+
+  btn.disabled = true;
+  setStatus(status, "Generating audio... longer text takes more time.", "loading");
+  audioEl.style.display = "none";
+
+  try {
+    const res = await fetch(`${API_BASE}/generate-audio`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, target_lang: targetLang })
+    });
+    if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+    const blob = await res.blob();
+    audioEl.src = URL.createObjectURL(blob);
+    audioEl.style.display = "block";
+    setStatus(status, "Done!", "success");
+  } catch (err) {
+    setStatus(status, "Error generating audio. Check server is running.", "error");
+    console.error("Generate audio error:", err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ---------- Speech to Speech: Live Recording ----------
+let mediaRecorder;
+let audioChunks = [];
+let isRecording = false;
+
+async function toggleRecording() {
+  const btn = document.getElementById("recordBtn");
+  const status = document.getElementById("voiceStatus");
+
+  if (!isRecording) {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = sendRecording;
+
+    mediaRecorder.start();
+    isRecording = true;
+    btn.textContent = "⏹️ Stop Recording";
+    btn.classList.add("recording"); // NEW: pulse
+    setStatus(status, "Recording... speak now.");
+  } else {
+    mediaRecorder.stop();
+    isRecording = false;
+    btn.textContent = "🎙️ Start Recording";
+    btn.classList.remove("recording"); // NEW: stop pulse
+    setStatus(status, "Processing your speech...", "loading");
+  }
+}
+
+async function sendRecording() {
+  const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+  const status = document.getElementById("voiceStatus");
+  setStatus(status, "Processing your speech...", "loading");
+  document.getElementById("voiceAudio").style.display = "none";
+
+  await sendAudioToServer(audioBlob, "recording.webm");
+}
+
+// ---------- Speech to Speech: File Upload (audio or video) ----------
+async function uploadAudioFile() {
+  const fileInput = document.getElementById("audioFileInput");
+  if (!fileInput.files.length) {
+    alert("Please choose a file first.");
+    return;
+  }
+  const file = fileInput.files[0];
+
+  const isAudio = file.type.startsWith("audio/");
+  const isVideo = file.type.startsWith("video/");
+  if (!isAudio && !isVideo) {
+    alert("Please upload an audio or video file (.mp3, .wav, .mp4, .mkv, etc.)");
+    return;
+  }
+
+  const status = document.getElementById("voiceStatus");
+  setStatus(status, isVideo
+    ? "Extracting and processing audio from video... please wait."
+    : "Uploading and processing...", "loading");
+  document.getElementById("voiceAudio").style.display = "none";
+
+  await sendAudioToServer(file);
+}
+
+// ---------- Shared function used by both recording and file upload ----------
+async function sendAudioToServer(audioFile, filename = null) {
+  const sourceLang = document.getElementById("sourceLang").value;
+  const targetLang = document.getElementById("targetLang2").value;
+  const status = document.getElementById("voiceStatus");
+  const audioEl = document.getElementById("voiceAudio");
+
+  const formData = new FormData();
+  formData.append("audio", audioFile, filename || audioFile.name);
+  formData.append("source_lang", sourceLang);
+  formData.append("target_lang", targetLang);
+
+  try {
+    const res = await fetch(`${API_BASE}/speech-to-speech`, {
+      method: "POST",
+      body: formData
+    });
+
+    if (res.status === 400) {
+      const errorData = await res.json();
+      setStatus(status, "⚠️ " + errorData.message, "error");
+      return;
+    }
+
+    if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+
+    const blob = await res.blob();
+    audioEl.src = URL.createObjectURL(blob);
+    audioEl.style.display = "block";
+    setStatus(status, "Done!", "success");
+  } catch (err) {
+    setStatus(status, "Error processing speech. Check server is running.", "error");
+    console.error("Speech-to-speech error:", err);
+  }
+}
+</script>
+
+</body>
+</html>
