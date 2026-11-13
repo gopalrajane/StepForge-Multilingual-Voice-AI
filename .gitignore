@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Local configuration
+.env
+
+# Uploaded and generated audio
+voice-service/uploaded_audio/
+voice-service/generated_audio/
+voice-service/test_outputs/
+*.wav
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
