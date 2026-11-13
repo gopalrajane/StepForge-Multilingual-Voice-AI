@@ -6,3 +6,4 @@ torchaudio
 sentencepiece
 soundfile
 python-multipart
+openai-whisper
